@@ -15,6 +15,10 @@ func NewTun(name string, ipCIDR *string) (tun *Tun, err error) {
 		name: name,
 	}
 
+	if err := t.Open(); err != nil {
+        return nil, err
+    }
+
 	if ipCIDR != nil {
 		err := t.SetAddr(*ipCIDR)
 		if err != nil {
