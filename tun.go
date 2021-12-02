@@ -33,6 +33,7 @@ func NewTun(name string, ipCIDR *string) (tun *Tun, err error) {
 type Tun struct {
 	ip net.IP
 	network *net.IPNet
+	mtu int
 	name string
 	fd int
 	link netlink.Link
@@ -87,6 +88,17 @@ func (t *Tun) SetNetwork(ipnet *net.IPNet) error {
 func (t *Tun) Network() *net.IPNet {
 
     return t.network
+
+}
+
+func (t *Tun) SetMTU(mtu int) error {
+	t.mtu = mtu
+	return t.setMTU()
+}
+
+func (t *Tun) MTU() int {
+
+	return t.mtu
 
 }
 
@@ -201,6 +213,17 @@ func (t *Tun) setIP() error {
 	// Bring the link up
 	return t.Up()
 
+}
+
+func (t *Tun) setMTU() error {
+
+	if t.link == nil {
+		if err := t.findLink(); err != nil {
+            return err
+        }
+	}
+
+	return netlink.LinkSetMTU(t.link, t.mtu)
 }
 
 func (t *Tun) findLink() (err error) {
