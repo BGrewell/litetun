@@ -120,7 +120,7 @@ func (t *Tun) Open() error {
         return errors.New("tunnel is already open")
     }
 
-	return t.open(unix.IFF_TUN|unix.IFF_NO_PI, false)
+	return t.open(unix.IFF_TUN|unix.IFF_NO_PI|unix.IFF_MULTI_QUEUE, false)
 
 }
 
