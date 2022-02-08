@@ -2,6 +2,7 @@ package litetun
 
 import (
 	"errors"
+	"fmt"
 	"golang.org/x/sys/unix"
 	"net"
 	"unsafe"
@@ -9,15 +10,15 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-func NewTun(name string, ipCIDR *string) (tun *Tun, err error) {
+func NewTun(name string, ipCIDR *string, namespace *string) (tun *Tun, err error) {
 
 	t := &Tun{
 		name: name,
 	}
 
 	if err := t.Open(); err != nil {
-        return nil, err
-    }
+		return nil, err
+	}
 
 	if ipCIDR != nil {
 		err := t.SetAddr(*ipCIDR)
@@ -31,24 +32,24 @@ func NewTun(name string, ipCIDR *string) (tun *Tun, err error) {
 }
 
 type Tun struct {
-	ip net.IP
+	ip      net.IP
 	network *net.IPNet
-	mtu int
-	name string
-	fd int
-	link netlink.Link
-	isOpen bool
+	mtu     int
+	name    string
+	fd      int
+	link    netlink.Link
+	isOpen  bool
 }
 
 func (t *Tun) SetName(name string) {
 
-    t.name = name
+	t.name = name
 
 }
 
 func (t *Tun) Name() string {
 
-    return t.name
+	return t.name
 
 }
 
@@ -58,7 +59,7 @@ func (t *Tun) SetAddr(ipCIDR string) error {
 		return err
 	}
 
-    t.ip = ip
+	t.ip = ip
 	t.network = ipnet
 
 	return t.setIP()
@@ -67,27 +68,27 @@ func (t *Tun) SetAddr(ipCIDR string) error {
 
 func (t *Tun) SetIP(ip net.IP) error {
 
-    t.ip = ip
+	t.ip = ip
 	return t.setIP()
 
 }
 
 func (t *Tun) IP() net.IP {
 
-    return t.ip
+	return t.ip
 
 }
 
 func (t *Tun) SetNetwork(ipnet *net.IPNet) error {
 
-    t.network = ipnet
+	t.network = ipnet
 	return t.setIP()
 
 }
 
 func (t *Tun) Network() *net.IPNet {
 
-    return t.network
+	return t.network
 
 }
 
@@ -104,21 +105,21 @@ func (t *Tun) MTU() int {
 
 func (t *Tun) Read(b []byte) (n int, err error) {
 
-    return unix.Read(t.fd, b)
+	return unix.Read(t.fd, b)
 
 }
 
 func (t *Tun) Write(b []byte) (n int, err error) {
 
-    return unix.Write(t.fd, b)
+	return unix.Write(t.fd, b)
 
 }
 
 func (t *Tun) Open() error {
 
-    if t.isOpen {
-        return errors.New("tunnel is already open")
-    }
+	if t.isOpen {
+		return errors.New("tunnel is already open")
+	}
 
 	return t.open(unix.IFF_TUN|unix.IFF_NO_PI|unix.IFF_MULTI_QUEUE, false)
 
@@ -126,7 +127,7 @@ func (t *Tun) Open() error {
 
 func (t *Tun) IsOpen() bool {
 
-    return t.isOpen
+	return t.isOpen
 
 }
 
@@ -143,8 +144,8 @@ func (t *Tun) Up() error {
 
 	if t.link == nil {
 		if err := t.findLink(); err != nil {
-            return err
-        }
+			return err
+		}
 	}
 	return netlink.LinkSetUp(t.link)
 
@@ -161,13 +162,27 @@ func (t *Tun) Down() error {
 
 }
 
+func (t *Tun) setNS(namespace string) error {
+	dev := fmt.Sprintf("/run/netns/%s", namespace)
+	nsFD, err := unix.Open(dev, unix.O_RDONLY, 0)
+	if err != nil {
+		return err
+	}
+	defer unix.Close(nsFD)
+	err = unix.Setns(nsFD, unix.CLONE_NEWNET)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (t *Tun) open(flags uint16, nonblocking bool) error {
 
 	// Open the tun device
 	fd, err := unix.Open("/dev/net/tun", unix.O_RDWR, 0)
 	if err != nil {
-        return err
-    }
+		return err
+	}
 
 	// Create the interface request
 	var ifr Ifr
@@ -178,8 +193,8 @@ func (t *Tun) open(flags uint16, nonblocking bool) error {
 	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(unix.TUNSETIFF), uintptr(unsafe.Pointer(&ifr)))
 	if errno != 0 {
 		unix.Close(fd)
-        return errno
-    }
+		return errno
+	}
 
 	// Set non-blocking
 	if err = unix.SetNonblock(fd, nonblocking); err != nil {
@@ -198,8 +213,8 @@ func (t *Tun) setIP() error {
 	// Get interface
 	if t.link == nil {
 		if err := t.findLink(); err != nil {
-            return err
-        }
+			return err
+		}
 	}
 
 	// Configure the ip address
@@ -219,8 +234,8 @@ func (t *Tun) setMTU() error {
 
 	if t.link == nil {
 		if err := t.findLink(); err != nil {
-            return err
-        }
+			return err
+		}
 	}
 
 	return netlink.LinkSetMTU(t.link, t.mtu)
@@ -230,8 +245,8 @@ func (t *Tun) findLink() (err error) {
 
 	t.link, err = netlink.LinkByName(t.name)
 	if err != nil {
-        return err
-    }
+		return err
+	}
 
 	return nil
 }
