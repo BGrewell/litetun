@@ -3,8 +3,10 @@ package litetun
 import (
 	"errors"
 	"fmt"
+	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 	"net"
+	"runtime"
 	"unsafe"
 
 	"github.com/vishvananda/netlink"
@@ -16,8 +18,20 @@ func NewTun(name string, ipCIDR *string, namespace *string) (tun *Tun, err error
 		name: name,
 	}
 
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	orgNS, _ := netns.Get()
+	defer orgNS.Close()
+
 	if namespace != nil {
-		err = t.setNS(*namespace)
+		targetNS, err := netns.GetFromName(*namespace)
+		if err != nil {
+			return nil, err
+		}
+		defer targetNS.Close()
+
+		err = netns.Set(targetNS)
 		if err != nil {
 			return nil, err
 		}
@@ -34,6 +48,7 @@ func NewTun(name string, ipCIDR *string, namespace *string) (tun *Tun, err error
 		}
 	}
 
+	netns.Set(orgNS)
 	return t, nil
 
 }
