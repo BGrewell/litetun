@@ -16,6 +16,13 @@ func NewTun(name string, ipCIDR *string, namespace *string) (tun *Tun, err error
 		name: name,
 	}
 
+	if namespace != nil {
+		err = t.setNS(*namespace)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if err := t.Open(); err != nil {
 		return nil, err
 	}
