@@ -143,7 +143,9 @@ func (t *Tun) Open() error {
 		return errors.New("tunnel is already open")
 	}
 
-	return t.open(unix.IFF_TUN|unix.IFF_NO_PI|unix.IFF_MULTI_QUEUE, false)
+	// TODO: Removed unix.IFF_MULTI_QUEUE - later could look into implementing multiple queues to improve performance
+
+	return t.open(unix.IFF_TUN|unix.IFF_NO_PI, false)
 
 }
 
